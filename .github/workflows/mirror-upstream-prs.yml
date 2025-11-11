@@ -5,11 +5,6 @@ on:
   schedule:
     - cron: '0 * * * *' # every hour
 
-# Global permissions — critical for allowing workflow file updates
-permissions:
-  contents: write
-  workflows: write
-
 jobs:
   sync:
     runs-on: ubuntu-latest
