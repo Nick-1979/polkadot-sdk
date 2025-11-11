@@ -4,6 +4,10 @@ on:
     - cron: '0 * * * *' # check hourly
   workflow_dispatch:
 
+permissions:
+  contents: write
+  pull-requests: read
+
 jobs:
   sync:
     runs-on: ubuntu-latest
@@ -16,7 +20,7 @@ jobs:
       - name: Install GitHub CLI
         run: |
           sudo apt-get update
-          sudo apt-get install -y gh
+          sudo apt-get install -y gh jq
 
       - name: Authenticate GitHub CLI
         env:
@@ -29,10 +33,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          git remote remove upstream 2>/dev/null || true
           git remote add upstream https://github.com/paritytech/polkadot-sdk.git
           git fetch upstream +refs/pull/*/head:refs/remotes/upstream/pr/*
-          for pr in $(gh pr list -R paritytech/polkadot-sdk --state open --limit 10 --json number --jq '.[].number'); do
+
+          for pr in $(gh pr list -R paritytech/polkadot-sdk --state open --json number --jq '.[].number'); do
             echo "Mirroring PR #$pr"
             git fetch upstream pull/$pr/head:pr-$pr || true
-            git push origin pr-$pr --force || true
+            git push https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git pr-$pr --force || true
           done
