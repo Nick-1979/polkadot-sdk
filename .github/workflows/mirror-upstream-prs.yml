@@ -1,8 +1,9 @@
 name: Mirror Parity PRs
+
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 * * * *' # hourly
+    - cron: '0 * * * *' # every hour
 
 jobs:
   sync:
@@ -30,9 +31,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "${GH_TOKEN}" | gh auth login --with-token
-          echo "✅ Authenticated as:"
-          gh auth status
+          echo "🔑 Using runner's built-in GH_TOKEN for authentication"
+          gh auth status || echo "⚠️ Could not verify auth status, continuing anyway."
 
       - name: Mirror top 10 Parity PRs
         env:
