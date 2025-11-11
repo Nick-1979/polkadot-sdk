@@ -43,9 +43,6 @@ jobs:
           git remote remove upstream 2>/dev/null || true
           git remote add upstream https://github.com/paritytech/polkadot-sdk.git
 
-          echo "📥 Fetching upstream PR refs..."
-          git fetch upstream +refs/pull/*/head:refs/remotes/upstream/pr/* || true
-
           echo "🔎 Getting list of open PRs (limit 10)..."
           prs=$(gh pr list -R paritytech/polkadot-sdk --state open --limit 10 --json number --jq '.[].number') || {
             echo "❌ Failed to get PR list. Check authentication or API limits."
@@ -59,13 +56,13 @@ jobs:
 
           echo "🧩 Mirroring PRs: $prs"
           for pr in $prs; do
-            echo "➡️  Processing PR #$pr"
-            if git fetch upstream pull/$pr/head:pr-$pr; then
+            echo "➡️  Fetching PR #$pr"
+            if git fetch upstream pull/$pr/head:pr-$pr --depth=1; then
               echo "✅ Fetched PR #$pr"
               git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository_owner }}/polkadot-sdk.git" pr-$pr --force
               echo "☑️  Mirrored PR #$pr successfully."
             else
-              echo "⚠️  Failed to fetch PR #$pr (may be too large or removed)."
+              echo "⚠️  Failed to fetch PR #$pr (maybe large or removed)."
             fi
           done
 
