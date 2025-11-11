@@ -1,7 +1,7 @@
 name: Mirror Parity PRs
 on:
   schedule:
-    - cron: '0 * * * *'  # check hourly
+    - cron: '0 * * * *' # check hourly
   workflow_dispatch:
 
 jobs:
@@ -13,11 +13,26 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install GitHub CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gh
+
+      - name: Authenticate GitHub CLI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh auth setup-git
+          gh auth status
+
       - name: Mirror upstream PRs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git remote add upstream https://github.com/paritytech/polkadot-sdk.git
-          git fetch upstream
+          git fetch upstream +refs/pull/*/head:refs/remotes/upstream/pr/*
           for pr in $(gh pr list -R paritytech/polkadot-sdk --state open --json number --jq '.[].number'); do
+            echo "Mirroring PR #$pr"
             git fetch upstream pull/$pr/head:pr-$pr || true
-            git push origin pr-$pr || true
+            git push origin pr-$pr --force || true
           done
