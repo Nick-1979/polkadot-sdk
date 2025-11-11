@@ -48,7 +48,6 @@ jobs:
           git remote add upstream https://github.com/paritytech/polkadot-sdk.git
 
           echo "🔎 Fetching recent PRs..."
-          # Fetch 50 recent PRs to ensure we get enough safe ones
           all_prs=$(gh pr list -R paritytech/polkadot-sdk --state open --limit 50 --json number --jq '.[].number')
 
           prs_to_mirror=""
@@ -56,14 +55,21 @@ jobs:
           max=10
 
           for pr in $all_prs; do
-            # Check if PR touches workflow files
-            files=$(gh pr view $pr --repo paritytech/polkadot-sdk --json files --jq '.files[].path')
-            if echo "$files" | grep -q "^\.github/workflows/"; then
-              echo "⚠️ Skipping PR #$pr (workflow file)"
+            echo "➡️ Considering PR #$pr"
+
+            # Fetch PR
+            if ! git fetch upstream pull/$pr/head:pr-$pr --depth=1; then
+              echo "⚠️ Failed to fetch PR #$pr. Skipping."
               continue
             fi
 
-            # Add safe PR to mirror list
+            # Post-fetch: check if branch contains workflow files
+            if git ls-tree -r pr-$pr | grep -q ".github/workflows/"; then
+              echo "⚠️ PR #$pr contains workflow files. Skipping push."
+              continue
+            fi
+
+            # Add to safe PRs list
             prs_to_mirror="$prs_to_mirror $pr"
             count=$((count + 1))
             if [ $count -ge $max ]; then
@@ -79,14 +85,9 @@ jobs:
           echo "🧩 Mirroring PRs: $prs_to_mirror"
 
           for pr in $prs_to_mirror; do
-            echo "➡️ Processing PR #$pr"
-            if git fetch upstream pull/$pr/head:pr-$pr --depth=1; then
-              echo "✅ Fetched PR #$pr"
-              git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository_owner }}/polkadot-sdk.git" pr-$pr --force
-              echo "☑️ Mirrored PR #$pr successfully."
-            else
-              echo "⚠️ Failed to fetch PR #$pr"
-            fi
+            echo "➡️ Pushing PR #$pr to fork..."
+            git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository_owner }}/polkadot-sdk.git" pr-$pr --force
+            echo "☑️ Mirrored PR #$pr successfully."
           done
 
           echo "✅ Mirroring complete at $(date)."
