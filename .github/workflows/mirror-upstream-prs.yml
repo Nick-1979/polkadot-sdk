@@ -31,7 +31,7 @@ jobs:
         run: |
           git remote add upstream https://github.com/paritytech/polkadot-sdk.git
           git fetch upstream +refs/pull/*/head:refs/remotes/upstream/pr/*
-          for pr in $(gh pr list -R paritytech/polkadot-sdk --state open --json number --jq '.[].number'); do
+          for pr in $(gh pr list -R paritytech/polkadot-sdk --state open --limit 10 --json number --jq '.[].number'); do
             echo "Mirroring PR #$pr"
             git fetch upstream pull/$pr/head:pr-$pr || true
             git push origin pr-$pr --force || true
