@@ -7,13 +7,21 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Install GitHub CLI
+      - name: Setup logging and environment
+        run: |
+          echo "🟣 Starting mirror process at $(date)"
+          echo "Git version: $(git --version)"
+          echo "GH CLI version: $(gh --version || echo 'not installed')"
+          echo "Current repository: $GITHUB_REPOSITORY"
+
+      - name: Install GitHub CLI and jq
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y gh jq
@@ -22,22 +30,43 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh auth setup-git
+          echo "${GH_TOKEN}" | gh auth login --with-token
+          echo "✅ Authenticated as:"
           gh auth status
 
       - name: Mirror top 10 Parity PRs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -e
+          echo "🔄 Adding upstream remote..."
           git remote remove upstream 2>/dev/null || true
           git remote add upstream https://github.com/paritytech/polkadot-sdk.git
-          git fetch upstream +refs/pull/*/head:refs/remotes/upstream/pr/*
 
-          prs=$(gh pr list -R paritytech/polkadot-sdk --state open --limit 10 --json number --jq '.[].number')
+          echo "📥 Fetching upstream PR refs..."
+          git fetch upstream +refs/pull/*/head:refs/remotes/upstream/pr/* || true
 
-          echo "Mirroring PRs: $prs"
+          echo "🔎 Getting list of open PRs (limit 10)..."
+          prs=$(gh pr list -R paritytech/polkadot-sdk --state open --limit 10 --json number --jq '.[].number') || {
+            echo "❌ Failed to get PR list. Check authentication or API limits."
+            exit 1
+          }
+
+          if [ -z "$prs" ]; then
+            echo "ℹ️ No open PRs found to mirror."
+            exit 0
+          fi
+
+          echo "🧩 Mirroring PRs: $prs"
           for pr in $prs; do
-            echo "Fetching and pushing PR #$pr"
-            git fetch upstream pull/$pr/head:pr-$pr || continue
-            git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" pr-$pr --force || true
+            echo "➡️  Processing PR #$pr"
+            if git fetch upstream pull/$pr/head:pr-$pr; then
+              echo "✅ Fetched PR #$pr"
+              git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository_owner }}/polkadot-sdk.git" pr-$pr --force
+              echo "☑️  Mirrored PR #$pr successfully."
+            else
+              echo "⚠️  Failed to fetch PR #$pr (may be too large or removed)."
+            fi
           done
+
+          echo "✅ Mirroring complete at $(date)."
